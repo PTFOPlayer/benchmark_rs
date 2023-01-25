@@ -21,7 +21,7 @@ impl SingleRun for Arr64<f64> {
         for _ in 0..128 {
             let mut square:f64 = 0.0;
             for _ in 0..128 {
-                square += rng.gen::<f64>() / rng.gen::<f64>(); 
+                square += f64::sqrt(rng.gen::<f64>() / rng.gen::<f64>()); 
             }
             self.vector.append(&mut vec![square]);
         }
@@ -33,7 +33,7 @@ impl SingleRun for Arr64<i64> {
         for _ in 0..128 {
             let mut square:i64 = 0;
             for _ in 0..128 {
-                square += rng.gen::<i64>() / rng.gen::<i64>(); 
+                square += i64::pow(rng.gen::<i64>() / rng.gen::<i64>(), rng.gen::<u32>())  ; 
             }
             self.vector.append(&mut vec![square]);
         }
