@@ -53,6 +53,7 @@ impl Settings {
 }
 
 fn runner(settings: Settings) -> i32 {
+    println!("starting benchmark on settings: \nfloat:{}\ttime:{},\tcores:{}", settings.float, settings.time, settings.threads);
     let mut counter = 0;
     let start = Instant::now();
     loop {
@@ -106,6 +107,13 @@ fn arg_parser() {
                     Ok(res) => {settings.threads = res;}
                     Err(_) => {println!("wrong parameter in argument -c=");}
                 }
+            }
+            "--help" =>{
+                println!("
+-f=(bool) => sets if using float or just int calculations (default false)
+-t=(float) => sets time of benchmark (default 120s)
+-c=(int) => number of threads (default 8)
+")
             }
             &_ => {}   
         }
