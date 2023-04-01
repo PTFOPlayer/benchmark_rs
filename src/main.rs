@@ -8,7 +8,12 @@ use std::{
 
 lazy_static! {
     static ref ARGS: Vec<String> = env::args().collect();
-    static ref PAGE: i32 = 512;
+    static ref PAGE: i32 = 1024;
+    static ref DEFAULT_SETTINGS: Settings = Settings {
+        threads: 8,
+        time: 180.0,
+        float: false
+    };
 }
 
 trait SingleRun {
@@ -27,47 +32,46 @@ impl SingleRun for Arr64<f64> {
             for _ in 0..*PAGE {
                 square += f64::sqrt(rng.gen::<f64>() / rng.gen::<f64>());
             }
-            self.vector.append(&mut vec![square]);
+            self.vector.push(square);
         }
     }
 }
+
 impl SingleRun for Arr64<i64> {
     fn run(&mut self) {
         let mut rng = rand::thread_rng();
         for _ in 0..*PAGE {
             let mut square: i64 = 0;
-
             for _ in 0..*PAGE {
                 square += i64::pow(rng.gen::<i64>() / rng.gen::<i64>(), rng.gen::<u32>());
             }
-            self.vector.append(&mut vec![square]);
+            self.vector.push(square);
         }
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct Settings {
-    pub threads: i32,
+    pub threads: u32,
     pub time: f64,
     pub float: bool,
 }
 
 impl Settings {
-    fn new(threads: i32, time: f64, float: bool) -> Self {
-        Settings {
-            threads,
-            time,
-            float,
-        }
+    fn new() -> Self {
+        *DEFAULT_SETTINGS
     }
 }
 
-fn runner(settings: Settings) -> i32 {
+fn runner(settings: Settings) -> f64 {
     println!(
         "starting benchmark on settings: \nfloat:{}\ttime:{},\tcores:{}",
         settings.float, settings.time, settings.threads
     );
-    let mut counter = 0;
+
+    let mut counter: u64 = 0;
     let start = Instant::now();
+
     loop {
         let mut handles = vec![];
         for _ in 0..settings.threads {
@@ -84,66 +88,61 @@ fn runner(settings: Settings) -> i32 {
             }
         }
         for handle in handles {
-            handle.join().unwrap();
-            counter += 1;
+            match handle.join() {
+                Ok(_) => {
+                    counter += 1;
+                }
+                Err(_) => {}
+            };
         }
         if start.elapsed() > Duration::from_secs_f64(settings.time) {
             break;
         }
     }
-    return counter;
+
+    return counter as f64 / settings.time;
 }
 
 fn arg_parser() {
-    let mut settings = Settings::new(8, 120.0, false);
+    let mut settings = Settings::new();
     for arg in ARGS[1..].iter() {
-        match arg.as_str() {
-            "--help" | "-h" => {
-                println!(
-                    "
+        if let "--help" | "-h" = arg.as_str() {
+            println!(
+                "
 -f=(bool) => sets if using float or just int calculations (default false)
 -t=(float) => sets time of benchmark (default 120s)
 -c=(int) => number of threads (default 8)
 "
-                );
-                return ();
-            }
-            &_ => match &arg.as_str()[..2] {
+            );
+            return ();
+        } else {
+            match &arg[..2] {
                 "-f" => {
                     let float: Result<bool, _> = arg[3..].parse();
-                    match float {
-                        Ok(res) => {
-                            settings.float = res;
-                        }
-                        Err(_) => {
-                            println!("wrong parameter in argument -f=");
-                        }
+                    if let Ok(res) = float {
+                        settings.float = res;
+                    } else {
+                        println!("wrong parameter in argument -f=");
                     }
                 }
                 "-t" => {
                     let time: Result<f64, _> = arg[3..].parse();
-                    match time {
-                        Ok(res) => {
-                            settings.time = res;
-                        }
-                        Err(_) => {
-                            println!("wrong parameter in argument -t=");
-                        }
+                    if let Ok(res) = time {
+                        settings.time = res;
+                    } else {
+                        println!("wrong parameter in argument -t=");
                     }
                 }
                 "-c" => {
-                    let cores: Result<i32, _> = arg[3..].parse();
-                    match cores {
-                        Ok(res) => {
-                            settings.threads = res;
-                        }
-                        Err(_) => {
-                            println!("wrong parameter in argument -c=");
-                        }
+                    let cores: Result<u32, _> = arg[3..].parse();
+                    if let Ok(res) = cores {
+                        settings.threads = res;
+                    } else {
+                        println!("wrong parameter in argument -c=");
                     }
                 }
                 &_ => {}
-            },
+            }
         };
     }
     println!("{}", runner(settings));
