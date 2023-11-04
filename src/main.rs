@@ -6,46 +6,39 @@ use std::{
     time::{Duration, Instant},
 };
 
+const PAGE: usize = 1024;
+
 lazy_static! {
     static ref ARGS: Vec<String> = env::args().collect();
-    static ref PAGE: i32 = 1024;
     static ref DEFAULT_SETTINGS: Settings = Settings {
         threads: 8,
         time: 180.0,
-        float: false
+    };
+    static ref DATA: Box<[[f64; PAGE]; PAGE]> = {
+        let mut rng = rand::thread_rng();
+        let mut temp = Box::new([[0.0 as f64; PAGE]; PAGE]);
+        for i in 0..PAGE {
+            for j in 0..PAGE {
+                temp[i][j] = rng.gen::<f64>();
+            }
+        }
+
+        return temp;
     };
 }
 
-trait SingleRun {
-    fn run(&mut self);
+pub struct Arr64 {
+    pub vector: Vec<f64>,
 }
 
-pub struct Arr64<T> {
-    pub vector: Vec<T>,
-}
-
-impl SingleRun for Arr64<f64> {
+impl Arr64 {
     fn run(&mut self) {
-        let mut rng = rand::thread_rng();
-        for _ in 0..*PAGE {
-            let mut square: f64 = 0.0;
-            for _ in 0..*PAGE {
-                square += f64::sqrt(rng.gen::<f64>() / rng.gen::<f64>());
+        for i in 0..PAGE {
+            let mut sqrt: f64 = 0.0;
+            for j in 0..PAGE {
+                sqrt += f64::sqrt(DATA[i][j] / DATA[j][i]);
             }
-            self.vector.push(square);
-        }
-    }
-}
-
-impl SingleRun for Arr64<i64> {
-    fn run(&mut self) {
-        let mut rng = rand::thread_rng();
-        for _ in 0..*PAGE {
-            let mut square: i64 = 0;
-            for _ in 0..*PAGE {
-                square += i64::pow(rng.gen::<i64>() / rng.gen::<i64>(), rng.gen::<u32>());
-            }
-            self.vector.push(square);
+            self.vector.push(sqrt);
         }
     }
 }
@@ -54,7 +47,6 @@ impl SingleRun for Arr64<i64> {
 struct Settings {
     pub threads: u32,
     pub time: f64,
-    pub float: bool,
 }
 
 impl Settings {
@@ -65,28 +57,29 @@ impl Settings {
 
 fn runner(settings: Settings) -> f64 {
     println!(
-        "starting benchmark on settings: \nfloat:{}\ttime:{},\tcores:{}",
-        settings.float, settings.time, settings.threads
+        "starting benchmark on settings: \ntime:{},\tcores:{}",
+        settings.time, settings.threads
     );
+
+    println!("preparing data...");
+    let p_start = Instant::now();
+    let dummy = DATA[0][0];
+    println!("(dummy: {:?}), data prepared in: {:?}", dummy, p_start.elapsed());
+    println!("starting test...");
 
     let mut counter: u64 = 0;
     let start = Instant::now();
+    let duration = Duration::from_secs_f64(settings.time);
 
     loop {
         let mut handles = vec![];
         for _ in 0..settings.threads {
-            if settings.float {
-                let handle = thread::spawn(|| {
-                    Arr64::<f64> { vector: vec![] }.run();
-                });
-                handles.push(handle);
-            } else {
-                let handle = thread::spawn(|| {
-                    Arr64::<i64> { vector: vec![] }.run();
-                });
-                handles.push(handle);
-            }
+            let handle = thread::spawn(|| {
+                Arr64 { vector: vec![] }.run();
+            });
+            handles.push(handle);
         }
+
         for handle in handles {
             match handle.join() {
                 Ok(_) => {
@@ -95,11 +88,12 @@ fn runner(settings: Settings) -> f64 {
                 Err(_) => {}
             };
         }
-        if start.elapsed() > Duration::from_secs_f64(settings.time) {
+
+        if start.elapsed() > duration {
             break;
         }
     }
-
+    println!("finised with score:");
     return counter as f64 / settings.time;
 }
 
@@ -109,7 +103,6 @@ fn arg_parser() {
         if let "--help" | "-h" = arg.as_str() {
             println!(
                 "
--f=(bool) => sets if using float or just int calculations (default false)
 -t=(float) => sets time of benchmark (default 120s)
 -c=(int) => number of threads (default 8)
 "
@@ -117,14 +110,6 @@ fn arg_parser() {
             return ();
         } else {
             match &arg[..2] {
-                "-f" => {
-                    let float: Result<bool, _> = arg[3..].parse();
-                    if let Ok(res) = float {
-                        settings.float = res;
-                    } else {
-                        println!("wrong parameter in argument -f=");
-                    }
-                }
                 "-t" => {
                     let time: Result<f64, _> = arg[3..].parse();
                     if let Ok(res) = time {
