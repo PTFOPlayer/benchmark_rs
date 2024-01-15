@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const PAGE: usize = 1024;
+const PAGE: usize = 2048;
 
 lazy_static! {
     static ref ARGS: Vec<String> = env::args().collect();
@@ -14,9 +14,9 @@ lazy_static! {
         threads: 8,
         time: 180.0,
     };
-    static ref DATA: Box<[[f64; PAGE]; PAGE]> = {
+    static ref DATA: Vec<Vec<f64>> = {
         let mut rng = rand::thread_rng();
-        let mut temp = Box::new([[0.0 as f64; PAGE]; PAGE]);
+        let mut temp = vec![vec![0.0f64; PAGE]; PAGE];
         for i in 0..PAGE {
             for j in 0..PAGE {
                 temp[i][j] = rng.gen::<f64>();
@@ -64,29 +64,33 @@ fn runner(settings: Settings) -> f64 {
     println!("preparing data...");
     let p_start = Instant::now();
     let dummy = DATA[0][0];
-    println!("(dummy: {:?}), data prepared in: {:?}", dummy, p_start.elapsed());
+    println!(
+        "(dummy: {:?}), data prepared in: {:?}",
+        dummy,
+        p_start.elapsed()
+    );
     println!("starting test...");
 
     let mut counter: u64 = 0;
     let start = Instant::now();
     let duration = Duration::from_secs_f64(settings.time);
 
+    let mut handles = vec![];
     loop {
-        let mut handles = vec![];
-        for _ in 0..settings.threads {
+        if handles.len() < settings.threads as usize {
             let handle = thread::spawn(|| {
                 Arr64 { vector: vec![] }.run();
             });
             handles.push(handle);
-        }
-
-        for handle in handles {
-            match handle.join() {
-                Ok(_) => {
+        } else {
+            let mut len = handles.len() - 1;
+            while len > 0 {
+                if handles[len].is_finished() {
                     counter += 1;
+                    handles.remove(len);
                 }
-                Err(_) => {}
-            };
+                len -= 1;
+            }
         }
 
         if start.elapsed() > duration {
@@ -134,7 +138,7 @@ fn arg_parser() {
 }
 
 fn main() {
-    if ARGS.len() < 2 {
+    if ARGS.len() < 1 {
         println!("no arguments passed, see --help");
     } else {
         arg_parser();
