@@ -10,10 +10,6 @@ const PAGE: usize = 2048;
 
 lazy_static! {
     static ref ARGS: Vec<String> = env::args().collect();
-    static ref DEFAULT_SETTINGS: Settings = Settings {
-        threads: 8,
-        time: 180.0,
-    };
     static ref DATA: Vec<Vec<f64>> = {
         let mut rng = rand::thread_rng();
         let mut temp = vec![vec![0.0f64; PAGE]; PAGE];
@@ -49,9 +45,12 @@ struct Settings {
     pub time: f64,
 }
 
-impl Settings {
-    fn new() -> Self {
-        *DEFAULT_SETTINGS
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            threads: 8,
+            time: 180.0,
+        }
     }
 }
 
@@ -78,9 +77,7 @@ fn runner(settings: Settings) -> f64 {
     let mut handles = vec![];
     loop {
         if handles.len() < settings.threads as usize {
-            let handle = thread::spawn(|| {
-                Arr64 { vector: vec![] }.run();
-            });
+            let handle = thread::spawn(|| Arr64 { vector: vec![] }.run());
             handles.push(handle);
         } else {
             let mut len = handles.len() - 1;
@@ -102,7 +99,7 @@ fn runner(settings: Settings) -> f64 {
 }
 
 fn arg_parser() {
-    let mut settings = Settings::new();
+    let mut settings = Settings::default();
     for arg in ARGS[1..].iter() {
         if let "--help" | "-h" = arg.as_str() {
             println!(
@@ -119,7 +116,7 @@ fn arg_parser() {
                     if let Ok(res) = time {
                         settings.time = res;
                     } else {
-                        println!("wrong parameter in argument -t=");
+                        println!("wrong parameter in argument -t=?");
                     }
                 }
                 "-c" => {
@@ -127,7 +124,7 @@ fn arg_parser() {
                     if let Ok(res) = cores {
                         settings.threads = res;
                     } else {
-                        println!("wrong parameter in argument -c=");
+                        println!("wrong parameter in argument -c=?");
                     }
                 }
                 &_ => {}
